@@ -1,0 +1,771 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>VHS-FX — Retro Tape Effect</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=VT323&family=Share+Tech+Mono&display=swap');
+
+  :root {
+    --bg: #0a0a0f;
+    --surface: #10101a;
+    --border: #1e1e30;
+    --red: #ff2b4e;
+    --cyan: #00ffe0;
+    --yellow: #ffe033;
+    --text: #c8c8e0;
+    --dim: #555577;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Share Tech Mono', monospace;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    overflow-x: hidden;
+  }
+
+  /* CRT scanline overlay on body */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background: repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent 2px,
+      rgba(0,0,0,0.18) 2px,
+      rgba(0,0,0,0.18) 4px
+    );
+    pointer-events: none;
+    z-index: 9999;
+  }
+
+  /* CRT flicker */
+  body::after {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background: rgba(255,255,255,0.012);
+    pointer-events: none;
+    z-index: 9998;
+    animation: flicker 0.15s infinite;
+  }
+
+  @keyframes flicker {
+    0%,100% { opacity: 1; }
+    50% { opacity: 0.96; }
+  }
+
+  /* ─── HEADER ─── */
+  header {
+    width: 100%;
+    padding: 28px 40px 20px;
+    display: flex;
+    align-items: baseline;
+    gap: 16px;
+    border-bottom: 1px solid var(--border);
+    position: relative;
+  }
+
+  .logo {
+    font-family: 'VT323', monospace;
+    font-size: 3.2rem;
+    color: var(--red);
+    text-shadow: 3px 0 0 var(--cyan), -1px 0 0 var(--yellow);
+    letter-spacing: 4px;
+    animation: logoGlitch 4s infinite;
+  }
+
+  @keyframes logoGlitch {
+    0%,92%,100% { text-shadow: 3px 0 0 var(--cyan), -1px 0 0 var(--yellow); }
+    93% { text-shadow: -4px 0 0 var(--cyan), 3px 0 0 var(--yellow); transform: skewX(-2deg); }
+    94% { text-shadow: 3px 0 0 var(--cyan), -1px 0 0 var(--yellow); transform: skewX(0); }
+  }
+
+  .tagline {
+    font-family: 'VT323', monospace;
+    font-size: 1.1rem;
+    color: var(--cyan);
+    letter-spacing: 2px;
+    opacity: 0.7;
+  }
+
+  .rec-badge {
+    margin-left: auto;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-family: 'VT323', monospace;
+    font-size: 1.2rem;
+    color: var(--red);
+    letter-spacing: 2px;
+  }
+
+  .rec-dot {
+    width: 10px; height: 10px;
+    border-radius: 50%;
+    background: var(--red);
+    box-shadow: 0 0 8px var(--red);
+    animation: blink 1s step-end infinite;
+  }
+
+  @keyframes blink { 0%,100% { opacity:1; } 50% { opacity:0; } }
+
+  /* ─── MAIN ─── */
+  main {
+    width: 100%;
+    max-width: 960px;
+    padding: 40px 24px 80px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 32px;
+  }
+
+  /* ─── DROP ZONE ─── */
+  #dropzone {
+    width: 100%;
+    max-width: 700px;
+    border: 2px dashed var(--border);
+    border-radius: 4px;
+    padding: 52px 24px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 14px;
+    cursor: pointer;
+    transition: border-color 0.2s, background 0.2s;
+    position: relative;
+    background: var(--surface);
+  }
+
+  #dropzone.drag-over {
+    border-color: var(--cyan);
+    background: rgba(0,255,224,0.04);
+  }
+
+  #dropzone:hover {
+    border-color: var(--dim);
+  }
+
+  .drop-icon {
+    font-size: 3.5rem;
+    color: var(--dim);
+    line-height: 1;
+    font-family: 'VT323', monospace;
+    letter-spacing: -2px;
+  }
+
+  .drop-title {
+    font-family: 'VT323', monospace;
+    font-size: 1.6rem;
+    color: var(--text);
+    letter-spacing: 2px;
+  }
+
+  .drop-sub {
+    font-size: 0.75rem;
+    color: var(--dim);
+    letter-spacing: 1px;
+  }
+
+  .btn-browse {
+    margin-top: 4px;
+    padding: 8px 28px;
+    background: transparent;
+    border: 1px solid var(--red);
+    color: var(--red);
+    font-family: 'VT323', monospace;
+    font-size: 1.1rem;
+    letter-spacing: 3px;
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s, box-shadow 0.15s;
+  }
+
+  .btn-browse:hover {
+    background: var(--red);
+    color: #000;
+    box-shadow: 0 0 18px rgba(255,43,78,0.5);
+  }
+
+  #fileInput { display: none; }
+
+  /* ─── CONTROLS ─── */
+  #controls {
+    display: none;
+    width: 100%;
+    max-width: 700px;
+    flex-direction: column;
+    gap: 18px;
+  }
+
+  .ctrl-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+  }
+
+  @media (max-width: 560px) {
+    .ctrl-grid { grid-template-columns: 1fr; }
+  }
+
+  .ctrl-item {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .ctrl-label {
+    font-size: 0.7rem;
+    color: var(--cyan);
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    display: flex;
+    justify-content: space-between;
+  }
+
+  .ctrl-label span { color: var(--yellow); }
+
+  input[type=range] {
+    -webkit-appearance: none;
+    width: 100%;
+    height: 3px;
+    background: var(--border);
+    outline: none;
+    border-radius: 0;
+  }
+
+  input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 14px;
+    height: 14px;
+    background: var(--cyan);
+    cursor: pointer;
+    border-radius: 0;
+    box-shadow: 0 0 8px var(--cyan);
+  }
+
+  .ctrl-actions {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+
+  .btn-action {
+    flex: 1;
+    padding: 12px 20px;
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--text);
+    font-family: 'VT323', monospace;
+    font-size: 1.15rem;
+    letter-spacing: 2px;
+    cursor: pointer;
+    transition: all 0.15s;
+    text-transform: uppercase;
+  }
+
+  .btn-action:hover { border-color: var(--dim); color: #fff; }
+
+  .btn-action.primary {
+    border-color: var(--cyan);
+    color: var(--cyan);
+  }
+
+  .btn-action.primary:hover {
+    background: var(--cyan);
+    color: #000;
+    box-shadow: 0 0 20px rgba(0,255,224,0.4);
+  }
+
+  .btn-action.danger {
+    border-color: var(--red);
+    color: var(--red);
+  }
+
+  .btn-action.danger:hover {
+    background: var(--red);
+    color: #000;
+    box-shadow: 0 0 20px rgba(255,43,78,0.4);
+  }
+
+  /* ─── CANVAS DISPLAY ─── */
+  #canvasWrap {
+    display: none;
+    width: 100%;
+    max-width: 700px;
+    position: relative;
+    border: 1px solid var(--border);
+    background: #000;
+    overflow: hidden;
+  }
+
+  /* VHS tape-edge bars */
+  #canvasWrap::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background:
+      linear-gradient(to bottom,
+        rgba(0,0,0,0.35) 0%, transparent 4%,
+        transparent 96%, rgba(0,0,0,0.35) 100%
+      );
+    pointer-events: none;
+    z-index: 2;
+  }
+
+  #outputCanvas {
+    display: block;
+    width: 100%;
+    height: auto;
+  }
+
+  .canvas-stamp {
+    position: absolute;
+    bottom: 14px;
+    right: 16px;
+    font-family: 'VT323', monospace;
+    font-size: 1.05rem;
+    color: rgba(255,255,255,0.55);
+    letter-spacing: 1px;
+    pointer-events: none;
+    z-index: 3;
+    text-shadow: 1px 1px 0 #000;
+  }
+
+  /* ─── STATUS BAR ─── */
+  #statusBar {
+    width: 100%;
+    max-width: 700px;
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.68rem;
+    color: var(--dim);
+    letter-spacing: 1px;
+    padding: 0 2px;
+  }
+
+  .status-pulse {
+    color: var(--cyan);
+    animation: pulse 2s ease-in-out infinite;
+  }
+
+  @keyframes pulse { 0%,100%{opacity:1;} 50%{opacity:0.4;} }
+
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">VHS-FX</div>
+  <div class="tagline">▶ RETRO TAPE EFFECT</div>
+  <div class="rec-badge"><div class="rec-dot"></div> REC</div>
+</header>
+
+<main>
+
+  <!-- Drop Zone -->
+  <div id="dropzone">
+    <div class="drop-icon">▶▶</div>
+    <div class="drop-title">DROP YOUR IMAGE HERE</div>
+    <div class="drop-sub">JPG · PNG · WEBP · GIF</div>
+    <button class="btn-browse" onclick="document.getElementById('fileInput').click()">[ BROWSE FILE ]</button>
+    <input type="file" id="fileInput" accept="image/*">
+  </div>
+
+  <!-- Canvas Preview -->
+  <div id="canvasWrap">
+    <canvas id="outputCanvas"></canvas>
+    <div class="canvas-stamp" id="timestamp"></div>
+  </div>
+
+  <!-- Controls -->
+  <div id="controls">
+    <div class="ctrl-grid">
+
+      <div class="ctrl-item">
+        <label class="ctrl-label">CHROMA BLEED <span id="val-chroma">8</span></label>
+        <input type="range" id="sl-chroma" min="0" max="24" value="8">
+      </div>
+
+      <div class="ctrl-item">
+        <label class="ctrl-label">SCANLINES <span id="val-scan">60</span></label>
+        <input type="range" id="sl-scan" min="0" max="100" value="60">
+      </div>
+
+      <div class="ctrl-item">
+        <label class="ctrl-label">NOISE <span id="val-noise">30</span></label>
+        <input type="range" id="sl-noise" min="0" max="80" value="30">
+      </div>
+
+      <div class="ctrl-item">
+        <label class="ctrl-label">GLITCH LINES <span id="val-glitch">4</span></label>
+        <input type="range" id="sl-glitch" min="0" max="20" value="4">
+      </div>
+
+      <div class="ctrl-item">
+        <label class="ctrl-label">WARP <span id="val-warp">3</span></label>
+        <input type="range" id="sl-warp" min="0" max="10" value="3">
+      </div>
+
+      <div class="ctrl-item">
+        <label class="ctrl-label">COLOR BLEED <span id="val-bleed">40</span></label>
+        <input type="range" id="sl-bleed" min="0" max="100" value="40">
+      </div>
+
+      <div class="ctrl-item">
+        <label class="ctrl-label">VIGNETTE <span id="val-vig">50</span></label>
+        <input type="range" id="sl-vig" min="0" max="100" value="50">
+      </div>
+
+      <div class="ctrl-item">
+        <label class="ctrl-label">TAPE AGE <span id="val-age">40</span></label>
+        <input type="range" id="sl-age" min="0" max="100" value="40">
+      </div>
+
+    </div>
+
+    <div class="ctrl-actions">
+      <button class="btn-action primary" onclick="downloadImage()">[ ⬇ DOWNLOAD ]</button>
+      <button class="btn-action" onclick="randomize()">[ ⟳ RANDOMIZE ]</button>
+      <button class="btn-action danger" onclick="resetAll()">[ ✕ NEW IMAGE ]</button>
+    </div>
+  </div>
+
+  <div id="statusBar">
+    <span>VHS-FX v1.0 // CLIENT-SIDE ONLY // NO UPLOAD</span>
+    <span class="status-pulse" id="statusMsg">● READY</span>
+  </div>
+
+</main>
+
+<script>
+  const dropzone    = document.getElementById('dropzone');
+  const fileInput   = document.getElementById('fileInput');
+  const canvasWrap  = document.getElementById('canvasWrap');
+  const canvas      = document.getElementById('outputCanvas');
+  const ctx         = canvas.getContext('2d');
+  const controls    = document.getElementById('controls');
+  const statusMsg   = document.getElementById('statusMsg');
+  const tsEl        = document.getElementById('timestamp');
+
+  let sourceImg = null;
+  let animFrame = null;
+
+  // ─── Sliders ───
+  const sliders = {
+    chroma: document.getElementById('sl-chroma'),
+    scan:   document.getElementById('sl-scan'),
+    noise:  document.getElementById('sl-noise'),
+    glitch: document.getElementById('sl-glitch'),
+    warp:   document.getElementById('sl-warp'),
+    bleed:  document.getElementById('sl-bleed'),
+    vig:    document.getElementById('sl-vig'),
+    age:    document.getElementById('sl-age'),
+  };
+
+  Object.entries(sliders).forEach(([k, el]) => {
+    el.addEventListener('input', () => {
+      document.getElementById(`val-${k}`).textContent = el.value;
+      if (sourceImg) render();
+    });
+  });
+
+  // ─── Drag & Drop ───
+  dropzone.addEventListener('dragover', e => { e.preventDefault(); dropzone.classList.add('drag-over'); });
+  dropzone.addEventListener('dragleave', () => dropzone.classList.remove('drag-over'));
+  dropzone.addEventListener('drop', e => {
+    e.preventDefault();
+    dropzone.classList.remove('drag-over');
+    const f = e.dataTransfer.files[0];
+    if (f && f.type.startsWith('image/')) loadFile(f);
+  });
+
+  fileInput.addEventListener('change', () => {
+    if (fileInput.files[0]) loadFile(fileInput.files[0]);
+  });
+
+  function loadFile(file) {
+    const reader = new FileReader();
+    reader.onload = e => {
+      const img = new Image();
+      img.onload = () => {
+        sourceImg = img;
+        showUI();
+        render();
+      };
+      img.src = e.target.result;
+    };
+    reader.readAsDataURL(file);
+  }
+
+  function showUI() {
+    dropzone.style.display    = 'none';
+    canvasWrap.style.display  = 'block';
+    controls.style.display    = 'flex';
+    updateTimestamp();
+  }
+
+  function updateTimestamp() {
+    const now = new Date();
+    const d = `${String(now.getFullYear()).slice(2)}-${pad(now.getMonth()+1)}-${pad(now.getDate())}`;
+    const t = `${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
+    tsEl.textContent = `${d}  ${t}`;
+  }
+
+  function pad(n) { return String(n).padStart(2,'0'); }
+
+  // ─── RENDER ───
+  function render() {
+    if (!sourceImg) return;
+    cancelAnimationFrame(animFrame);
+    animFrame = requestAnimationFrame(_render);
+  }
+
+  function _render() {
+    const W = sourceImg.naturalWidth;
+    const H = sourceImg.naturalHeight;
+    canvas.width  = W;
+    canvas.height = H;
+
+    const chroma  = +sliders.chroma.value;
+    const scan    = +sliders.scan.value / 100;
+    const noise   = +sliders.noise.value / 100;
+    const glitch  = +sliders.glitch.value;
+    const warp    = +sliders.warp.value;
+    const bleed   = +sliders.bleed.value / 100;
+    const vig     = +sliders.vig.value / 100;
+    const age     = +sliders.age.value / 100;
+
+    // Off-screen buffers
+    const offR = new OffscreenCanvas(W, H);
+    const offG = new OffscreenCanvas(W, H);
+    const offB = new OffscreenCanvas(W, H);
+
+    // Draw source
+    ctx.drawImage(sourceImg, 0, 0, W, H);
+
+    // Grab pixel data
+    const base = ctx.getImageData(0, 0, W, H);
+    const bd   = base.data;
+
+    // ── 1. Color grading (tape wash) ──
+    if (age > 0) {
+      for (let i = 0; i < bd.length; i += 4) {
+        // Desaturate slightly & warm tint
+        const r = bd[i], g = bd[i+1], b = bd[i+2];
+        const lum = 0.299*r + 0.587*g + 0.114*b;
+        bd[i]   = clamp(r + (lum - r) * age * 0.5 + age * 8);
+        bd[i+1] = clamp(g + (lum - g) * age * 0.3);
+        bd[i+2] = clamp(b + (lum - b) * age * 0.6 - age * 10);
+        // slight contrast crush
+        bd[i]   = clamp(bd[i]   * (1 - age*0.15) + age*10);
+        bd[i+1] = clamp(bd[i+1] * (1 - age*0.15) + age*8);
+        bd[i+2] = clamp(bd[i+2] * (1 - age*0.15) + age*6);
+      }
+    }
+
+    ctx.putImageData(base, 0, 0);
+
+    // ── 2. Chromatic aberration (RGB channel split) ──
+    if (chroma > 0) {
+      const shifted = ctx.getImageData(0, 0, W, H);
+      const sd = shifted.data;
+
+      // Draw red channel shifted right
+      const tmpC = new OffscreenCanvas(W, H);
+      const tmpCtx = tmpC.getContext('2d');
+      tmpCtx.drawImage(canvas, 0, 0);
+      const orig = tmpCtx.getImageData(0, 0, W, H).data;
+
+      for (let y = 0; y < H; y++) {
+        for (let x = 0; x < W; x++) {
+          const i  = (y * W + x) * 4;
+          // Red: shift right
+          const rx = x - chroma; const ry = y;
+          const ri = (ry * W + Math.max(0, rx)) * 4;
+          sd[i]   = orig[ri];
+          // Green: no shift (keep)
+          sd[i+1] = orig[i+1];
+          // Blue: shift left
+          const bx = x + chroma;
+          const bi = (y * W + Math.min(W-1, bx)) * 4;
+          sd[i+2] = orig[bi+2];
+          sd[i+3] = 255;
+        }
+      }
+      ctx.putImageData(shifted, 0, 0);
+    }
+
+    // ── 3. Horizontal color bleed (smear) ──
+    if (bleed > 0) {
+      const bleedData = ctx.getImageData(0, 0, W, H);
+      const bb = bleedData.data;
+      const smear = Math.round(bleed * 12);
+      for (let y = 0; y < H; y++) {
+        let ar = 0, ag = 0, ab = 0;
+        for (let x = 0; x < W; x++) {
+          const i = (y * W + x) * 4;
+          ar = ar * (1 - 1/smear) + bb[i]   / smear;
+          ag = ag * (1 - 1/smear) + bb[i+1] / smear;
+          ab = ab * (1 - 1/smear) + bb[i+2] / smear;
+          const mix = bleed * 0.4;
+          bb[i]   = clamp(bb[i]   * (1-mix) + ar * mix);
+          bb[i+1] = clamp(bb[i+1] * (1-mix) + ag * mix);
+          bb[i+2] = clamp(bb[i+2] * (1-mix) + ab * mix);
+        }
+      }
+      ctx.putImageData(bleedData, 0, 0);
+    }
+
+    // ── 4. Glitch horizontal lines ──
+    if (glitch > 0) {
+      const gd = ctx.getImageData(0, 0, W, H);
+      const gg = gd.data;
+      const lines = Math.floor(glitch * 2);
+      for (let k = 0; k < lines; k++) {
+        const lineY   = Math.floor(Math.random() * H);
+        const lineH   = Math.floor(Math.random() * 6) + 1;
+        const shift   = Math.floor((Math.random() - 0.5) * glitch * 8);
+        for (let row = lineY; row < Math.min(H, lineY + lineH); row++) {
+          const temp = new Uint8ClampedArray(W * 4);
+          for (let x = 0; x < W; x++) {
+            const sx = x - shift;
+            const si = (row * W + Math.max(0, Math.min(W-1, sx))) * 4;
+            const di = x * 4;
+            temp[di]   = gg[si];
+            temp[di+1] = gg[si+1];
+            temp[di+2] = gg[si+2];
+            temp[di+3] = 255;
+          }
+          for (let x = 0; x < W; x++) {
+            const i = (row * W + x) * 4;
+            gg[i]   = temp[x*4];
+            gg[i+1] = temp[x*4+1];
+            gg[i+2] = temp[x*4+2];
+          }
+        }
+      }
+      // Occasional bright horizontal tear
+      if (Math.random() < 0.4) {
+        const tearY = Math.floor(Math.random() * H);
+        for (let x = 0; x < W * 0.3 + Math.random() * W * 0.4; x++) {
+          const i = (tearY * W + Math.floor(Math.random() * W)) * 4;
+          gg[i] = gg[i+1] = gg[i+2] = 200 + Math.random()*55;
+        }
+      }
+      ctx.putImageData(gd, 0, 0);
+    }
+
+    // ── 5. Warp (horizontal wobble) ──
+    if (warp > 0) {
+      const wd = ctx.getImageData(0, 0, W, H);
+      const wp = wd.data;
+      const src = new Uint8ClampedArray(wp);
+      for (let y = 0; y < H; y++) {
+        const offset = Math.sin(y * 0.04 + Date.now() * 0.0005) * warp * 1.5 |0;
+        for (let x = 0; x < W; x++) {
+          const sx = Math.max(0, Math.min(W-1, x + offset));
+          const si = (y * W + sx) * 4;
+          const di = (y * W + x) * 4;
+          wp[di]   = src[si];
+          wp[di+1] = src[si+1];
+          wp[di+2] = src[si+2];
+        }
+      }
+      ctx.putImageData(wd, 0, 0);
+    }
+
+    // ── 6. Noise / grain ──
+    if (noise > 0) {
+      const nd = ctx.getImageData(0, 0, W, H);
+      const np = nd.data;
+      for (let i = 0; i < np.length; i += 4) {
+        const n = (Math.random() - 0.5) * noise * 80;
+        np[i]   = clamp(np[i]   + n);
+        np[i+1] = clamp(np[i+1] + n);
+        np[i+2] = clamp(np[i+2] + n);
+      }
+      ctx.putImageData(nd, 0, 0);
+    }
+
+    // ── 7. Scanlines overlay ──
+    if (scan > 0) {
+      for (let y = 0; y < H; y += 2) {
+        ctx.fillStyle = `rgba(0,0,0,${scan * 0.55})`;
+        ctx.fillRect(0, y, W, 1);
+      }
+    }
+
+    // ── 8. Vignette ──
+    if (vig > 0) {
+      const grad = ctx.createRadialGradient(W/2, H/2, H*0.3, W/2, H/2, H*0.85);
+      grad.addColorStop(0, 'rgba(0,0,0,0)');
+      grad.addColorStop(1, `rgba(0,0,0,${vig * 0.8})`);
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, 0, W, H);
+    }
+
+    // ── 9. Timestamp ──
+    updateTimestamp();
+
+    statusMsg.textContent = '● RENDERED';
+    setTimeout(() => { statusMsg.textContent = '● READY'; }, 600);
+  }
+
+  function clamp(v) { return Math.max(0, Math.min(255, v)); }
+
+  // ─── DOWNLOAD ───
+  function downloadImage() {
+    const link = document.createElement('a');
+    link.download = `vhs-fx-${Date.now()}.png`;
+    link.href = canvas.toDataURL('image/png');
+    link.click();
+    statusMsg.textContent = '● SAVED';
+    setTimeout(() => { statusMsg.textContent = '● READY'; }, 1200);
+  }
+
+  // ─── RANDOMIZE ───
+  function randomize() {
+    sliders.chroma.value = rnd(0, 18);
+    sliders.scan.value   = rnd(20, 90);
+    sliders.noise.value  = rnd(10, 60);
+    sliders.glitch.value = rnd(0, 14);
+    sliders.warp.value   = rnd(0, 8);
+    sliders.bleed.value  = rnd(10, 80);
+    sliders.vig.value    = rnd(20, 80);
+    sliders.age.value    = rnd(10, 70);
+    Object.entries(sliders).forEach(([k, el]) => {
+      document.getElementById(`val-${k}`).textContent = el.value;
+    });
+    if (sourceImg) render();
+  }
+
+  function rnd(a, b) { return Math.floor(Math.random() * (b - a + 1)) + a; }
+
+  // ─── RESET ───
+  function resetAll() {
+    sourceImg = null;
+    dropzone.style.display   = '';
+    canvasWrap.style.display = 'none';
+    controls.style.display   = 'none';
+    fileInput.value = '';
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+  }
+
+  // Live warp animation (only if warp > 0)
+  function liveLoop() {
+    if (sourceImg && +sliders.warp.value > 0) render();
+    requestAnimationFrame(liveLoop);
+  }
+  liveLoop();
+</script>
+</body>
+</html>
